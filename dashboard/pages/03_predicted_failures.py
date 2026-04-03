@@ -82,6 +82,6 @@ styled = (
         "anomaly_score":"Anomaly Score","risk_level":"Risk",
         "recommended_action":"Action",
     })
-    .style.applymap(highlight_risk, subset=["Risk"])
+    .style.map(highlight_risk, subset=["Risk"])
 )
 st.dataframe(styled, use_container_width=True, hide_index=True)

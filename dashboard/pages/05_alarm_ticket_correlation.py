@@ -84,7 +84,7 @@ fig_sc = px.scatter(
     color_discrete_map={"HIGH":"#E24B4A","MEDIUM":"#EF9F27","LOW":"#639922"},
     labels={"alarms":"Total Alarms","tickets":"Total Tickets"},
     height=360,
-    trendline="ols",
+    
 )
 fig_sc.update_layout(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
