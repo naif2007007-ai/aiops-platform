@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/aiops_platform"))
-from dashboard.data_loader import load_predictions, load_features
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from data_loader import load_predictions, load_features
 
 st.title("📊 Device Priority List")
 st.caption("All devices ranked from most urgent to healthiest — your action list for today")

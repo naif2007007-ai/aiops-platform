@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/aiops_platform"))
-from dashboard.data_loader import load_predictions, load_features
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from data_loader import load_predictions, load_features
 
 st.title("⚠️ Predicted Failures")
 st.caption("Devices the AI predicts will fail — ranked by urgency")

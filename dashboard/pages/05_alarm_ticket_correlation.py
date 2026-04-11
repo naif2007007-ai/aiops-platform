@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import sys, os
-sys.path.insert(0, os.path.expanduser("~/aiops_platform"))
-from dashboard.data_loader import load_alarms, load_tickets, load_predictions
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from data_loader import load_alarms, load_tickets, load_predictions
 
 st.title("🔗 Alerts to Tickets Analysis")
 st.caption("Understanding which alerts cause the most problems and cost the most time")
