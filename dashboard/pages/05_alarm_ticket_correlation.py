@@ -1,93 +1,149 @@
-# ============================================================
-# Page 5 — Alarm-to-Ticket Correlation
-# Shows how alarms escalate into incidents.
-# ============================================================
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import sys, os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.insert(0, os.path.expanduser("~/aiops_platform"))
 from dashboard.data_loader import load_alarms, load_tickets, load_predictions
 
-st.title("🔗 Alarm-to-Ticket Correlation")
-st.caption("Visualise how monitoring events escalate into incident tickets")
+st.title("🔗 Alerts to Tickets Analysis")
+st.caption("Understanding which alerts cause the most problems and cost the most time")
 st.divider()
 
 alarms  = load_alarms()
 tickets = load_tickets()
 preds   = load_predictions()
 
-alarms["timestamp"]  = pd.to_datetime(alarms["timestamp"])
-tickets["open_time"] = pd.to_datetime(tickets["open_time"])
+tickets["open_time"]  = pd.to_datetime(tickets["open_time"])
+tickets["close_time"] = pd.to_datetime(tickets["close_time"])
 
-# ── Event type → priority Sankey ──────────────────────────────
-st.subheader("Alarm Event Type → Ticket Priority Flow")
-merged = alarms.merge(
-    tickets[["alarm_id","priority"]], on="alarm_id", how="inner"
-)
-# Build Sankey
-event_types = merged["event_type"].unique().tolist()
-priorities  = merged["priority"].unique().tolist()
-nodes       = event_types + priorities
-node_idx    = {n: i for i, n in enumerate(nodes)}
+# ── KPI row ───────────────────────────────────────────────────
+total_alarms  = len(alarms)
+total_tickets = len(tickets)
+p1_tickets    = (tickets["priority"]=="P1 - Critical").sum()
+avg_fix_time  = tickets["resolution_time_hrs"].mean()
+reopened      = tickets["reopened"].sum()
 
-links = merged.groupby(["event_type","priority"]).size().reset_index(name="value")
-sankey_fig = go.Figure(go.Sankey(
-    node=dict(
-        pad=15, thickness=20,
-        label=nodes,
-        color=["#AFA9EC"] * len(event_types) + ["#E24B4A","#EF9F27","#639922","#378ADD"],
-    ),
-    link=dict(
-        source=[node_idx[r["event_type"]] for _, r in links.iterrows()],
-        target=[node_idx[r["priority"]]   for _, r in links.iterrows()],
-        value=links["value"].tolist(),
-    )
-))
-sankey_fig.update_layout(
-    height=420, paper_bgcolor="rgba(0,0,0,0)",
-    margin=dict(t=10,b=10,l=0,r=0),
-)
-st.plotly_chart(sankey_fig, use_container_width=True)
+c1,c2,c3,c4,c5 = st.columns(5)
+c1.metric("Total Alerts",        f"{total_alarms:,}")
+c2.metric("Total Tickets",       f"{total_tickets:,}")
+c3.metric("Emergency P1 Tickets",f"{p1_tickets:,}")
+c4.metric("Avg Fix Time",        f"{avg_fix_time:.1f} hrs")
+c5.metric("Reopened Tickets",    f"{reopened:,}")
+st.divider()
 
-# ── Alarm severity vs ticket priority heatmap ─────────────────
-st.subheader("Alarm Severity ↔ Ticket Priority Heatmap")
-heat = merged.groupby(["severity","priority"]).size().reset_index(name="count")
-heat_pivot = heat.pivot(index="severity", columns="priority", values="count").fillna(0)
-fig_heat = px.imshow(
-    heat_pivot,
-    color_continuous_scale="RdYlGn_r",
-    text_auto=True,
-    aspect="auto",
-    height=300,
+# ── Top problem types ─────────────────────────────────────────
+st.subheader("🔥 Which Alert Types Cause the Most Problems?")
+st.caption("These are the most common alert types — fixing the root cause will reduce tickets significantly")
+
+event_counts = alarms.groupby("event_type").size().reset_index(name="Alert Count")
+event_counts = event_counts.sort_values("Alert Count", ascending=False).head(10)
+event_counts["event_type"] = event_counts["event_type"].map({
+    "LinkDown":        "Network Link Failure",
+    "HighCPU":         "High CPU Usage",
+    "HighMemory":      "High Memory Usage",
+    "DiskFull":        "Disk Full",
+    "PacketLoss":      "Network Packet Loss",
+    "LatencySpike":    "Response Time Spike",
+    "AuthFailure":     "Login Failure",
+    "HardwareError":   "Hardware Error",
+    "ConfigChange":    "Configuration Change",
+    "ReachabilityLost":"Device Unreachable",
+}).fillna(event_counts["event_type"])
+
+fig = px.bar(
+    event_counts.sort_values("Alert Count"),
+    x="Alert Count", y="event_type",
+    orientation="h",
+    color_discrete_sequence=["#E24B4A"],
+    height=350,
+    text="Alert Count",
+    labels={"event_type":"Alert Type","Alert Count":"Number of Alerts"}
 )
-fig_heat.update_layout(
+fig.update_traces(textposition="outside")
+fig.update_layout(
     paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
     margin=dict(t=10,b=10,l=0,r=0),
+    xaxis_title="Number of Alerts",
+    yaxis_title=""
 )
-st.plotly_chart(fig_heat, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
+st.divider()
 
-# ── Per-asset alarm vs ticket count scatter ───────────────────
-st.subheader("Asset Alarm Volume vs Ticket Volume")
-alarm_counts  = alarms.groupby("asset_id").size().reset_index(name="alarms")
-ticket_counts = tickets.groupby("asset_id").size().reset_index(name="tickets")
-combo = alarm_counts.merge(ticket_counts, on="asset_id", how="left").fillna(0)
-combo = combo.merge(preds[["asset_id","risk_level"]], on="asset_id", how="left")
+# ── Ticket priority breakdown ─────────────────────────────────
+st.subheader("📊 Ticket Urgency Breakdown")
+st.caption("How urgent are the tickets being raised?")
+col_a, col_b = st.columns(2)
 
-fig_sc = px.scatter(
-    combo, x="alarms", y="tickets",
-    color="risk_level",
-    hover_name="asset_id",
-    color_discrete_map={"HIGH":"#E24B4A","MEDIUM":"#EF9F27","LOW":"#639922"},
-    labels={"alarms":"Total Alarms","tickets":"Total Tickets"},
-    height=360,
-    
-)
-fig_sc.update_layout(
-    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    margin=dict(t=10,b=10,l=0,r=0),
-)
-st.plotly_chart(fig_sc, use_container_width=True)
+with col_a:
+    pri_counts = tickets["priority"].value_counts().reset_index()
+    pri_counts.columns = ["Priority","Count"]
+    pri_counts["Priority"] = pri_counts["Priority"].map({
+        "P1 - Critical": "🔴 Emergency (P1)",
+        "P2 - High":     "🟠 Urgent (P2)",
+        "P3 - Medium":   "🟡 Normal (P3)",
+        "P4 - Low":      "🟢 Low (P4)",
+    })
+    fig2 = px.pie(
+        pri_counts, values="Count", names="Priority",
+        hole=0.5, height=300,
+        color="Priority",
+        color_discrete_map={
+            "🔴 Emergency (P1)":"#E24B4A",
+            "🟠 Urgent (P2)":   "#EF9F27",
+            "🟡 Normal (P3)":   "#639922",
+            "🟢 Low (P4)":      "#378ADD",
+        }
+    )
+    fig2.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=10,b=10,l=0,r=0)
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+
+with col_b:
+    st.subheader("⏱️ Average Fix Time by Priority")
+    st.caption("How long does it take to fix each type?")
+    fix_time = tickets.groupby("priority")["resolution_time_hrs"].mean().reset_index()
+    fix_time.columns = ["Priority","Avg Hours to Fix"]
+    fix_time["Priority"] = fix_time["Priority"].map({
+        "P1 - Critical": "🔴 Emergency",
+        "P2 - High":     "🟠 Urgent",
+        "P3 - Medium":   "🟡 Normal",
+        "P4 - Low":      "🟢 Low",
+    })
+    fix_time["Avg Hours to Fix"] = fix_time["Avg Hours to Fix"].round(1)
+    fig3 = px.bar(
+        fix_time, x="Priority", y="Avg Hours to Fix",
+        color_discrete_sequence=["#378ADD"],
+        height=280, text="Avg Hours to Fix"
+    )
+    fig3.update_traces(textposition="outside")
+    fig3.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=10,b=10,l=0,r=0),
+        xaxis_title="", yaxis_title="Hours"
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+
+st.divider()
+
+# ── Devices with most tickets ─────────────────────────────────
+st.subheader("📋 Devices with Most Open Tickets")
+st.caption("These devices keep generating tickets — they need root cause investigation")
+
+open_t = tickets[tickets["status"].isin(["Open","In Progress"])]
+top_t  = (open_t.groupby("asset_id").size()
+          .reset_index(name="Open Tickets")
+          .sort_values("Open Tickets", ascending=False)
+          .head(10))
+top_t  = top_t.merge(preds[["asset_id","risk_level","recommended_action"]], on="asset_id", how="left")
+top_t["risk_level"] = top_t["risk_level"].map({
+    "CRITICAL": "🟣 Emergency",
+    "HIGH":     "🔴 Urgent",
+    "MEDIUM":   "🟡 Monitor",
+    "LOW":      "🟢 Healthy"
+})
+top_t.columns = ["Device ID","Open Tickets","Risk Status","Recommended Action"]
+st.dataframe(top_t, use_container_width=True, hide_index=True)

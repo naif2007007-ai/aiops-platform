@@ -1,112 +1,113 @@
-# ============================================================
-# Page 2 — Operations Monitoring
-# Real-time alarm and log view with severity breakdown.
-# ============================================================
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import sys, os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
-from dashboard.data_loader import load_alarms, load_logs, load_assets
+sys.path.insert(0, os.path.expanduser("~/aiops_platform"))
+from dashboard.data_loader import load_alarms, load_logs, load_predictions
 
 st.title("📡 Operations Monitoring")
-st.caption("Live view of alarms, log anomalies, and resource utilisation")
+st.caption("Live view of alerts and device health across all locations")
 st.divider()
 
 alarms = load_alarms()
 logs   = load_logs()
-assets = load_assets()
-
+preds  = load_predictions()
 alarms["timestamp"] = pd.to_datetime(alarms["timestamp"])
 
 # ── Filters ───────────────────────────────────────────────────
+st.subheader("🔍 Filter the View")
 col1, col2, col3 = st.columns(3)
 with col1:
-    severities = st.multiselect(
-        "Severity", alarms["severity"].unique().tolist(),
-        default=["Critical","Major"]
-    )
+    days = st.slider("Show last N days", 7, 90, 30)
 with col2:
-    locations = st.multiselect(
-        "Location", alarms["location"].unique().tolist(),
+    locs = st.multiselect(
+        "Location",
+        alarms["location"].unique().tolist(),
         default=alarms["location"].unique().tolist()
     )
 with col3:
-    days_back = st.slider("Days back", 7, 90, 30)
+    sevs = st.multiselect(
+        "Alert Severity",
+        ["Critical","Major","Minor","Warning"],
+        default=["Critical","Major"]
+    )
 
-# ── Filter ────────────────────────────────────────────────────
-cutoff = alarms["timestamp"].max() - pd.Timedelta(days=days_back)
+cutoff   = alarms["timestamp"].max() - pd.Timedelta(days=days)
 filtered = alarms[
-    (alarms["severity"].isin(severities)) &
-    (alarms["location"].isin(locations)) &
+    (alarms["severity"].isin(sevs)) &
+    (alarms["location"].isin(locs)) &
     (alarms["timestamp"] >= cutoff)
-].copy()
+]
+st.caption(f"Showing {len(filtered):,} alerts from the last {days} days")
+st.divider()
 
-st.caption(f"Showing {len(filtered):,} alarms")
+# ── KPI row ───────────────────────────────────────────────────
+st.subheader("Alert Summary")
+c1,c2,c3,c4 = st.columns(4)
+c1.metric("Total Alerts",      f"{len(filtered):,}")
+c2.metric("Critical Alerts",   f"{(filtered['severity']=='Critical').sum():,}")
+c3.metric("Unacknowledged",    f"{(~filtered['acknowledged']).sum():,}")
+c4.metric("Devices Affected",  f"{filtered['asset_id'].nunique():,}")
+st.divider()
 
-# ── Severity heatmap over time ────────────────────────────────
-st.subheader("Alarm Frequency by Severity")
-pivot = (
-    filtered.set_index("timestamp")
-    .resample("D")["severity"]
-    .value_counts()
-    .unstack(fill_value=0)
-    .reset_index()
-)
-# Melt for plotly
-melted = pivot.melt(id_vars="timestamp", var_name="Severity", value_name="Count")
-sev_colors = {
-    "Critical":"#E24B4A","Major":"#EF9F27",
-    "Minor":"#639922","Warning":"#378ADD","Informational":"#888780"
-}
-fig = px.area(
-    melted, x="timestamp", y="Count", color="Severity",
-    color_discrete_map=sev_colors, height=320,
-)
+# ── Alert trend ───────────────────────────────────────────────
+st.subheader("📈 Alert Trend — Are Things Getting Better or Worse?")
+st.caption("If bars are getting taller over time — the situation is getting worse")
+daily = filtered.set_index("timestamp").resample("D").size().reset_index()
+daily.columns = ["Date","Number of Alerts"]
+fig = px.bar(daily, x="Date", y="Number of Alerts",
+             color_discrete_sequence=["#E24B4A"], height=280)
 fig.update_layout(
-    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    margin=dict(t=10,b=10,l=0,r=0),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    margin=dict(t=10,b=10,l=0,r=0)
 )
 st.plotly_chart(fig, use_container_width=True)
+st.divider()
 
-# ── CPU / Memory / Latency sparklines ─────────────────────────
-st.subheader("Infrastructure Health Metrics (average across all assets)")
+# ── Resource health ───────────────────────────────────────────
+st.subheader("💻 Device Resource Health")
+st.caption("Average CPU, Memory and Response Time across all devices")
 logs["date"] = pd.to_datetime(logs["date"])
-log_daily = logs.groupby("date")[["avg_cpu_pct","avg_mem_pct","avg_latency_ms"]].mean().reset_index()
+ld = logs.groupby("date")[["avg_cpu_pct","avg_mem_pct","avg_latency_ms"]].mean().reset_index()
 
-col_a, col_b, col_c = st.columns(3)
-for col, metric, label, color in [
-    (col_a, "avg_cpu_pct",   "Avg CPU %",      "#D85A30"),
-    (col_b, "avg_mem_pct",   "Avg Memory %",   "#378ADD"),
-    (col_c, "avg_latency_ms","Avg Latency (ms)","#9C9A92"),
+ca, cb, cc = st.columns(3)
+for col, metric, label, color, good, bad in [
+    (ca, "avg_cpu_pct",    "Average CPU Usage %",        "#E24B4A", "Below 70% is healthy", "Above 85% is critical"),
+    (cb, "avg_mem_pct",    "Average Memory Usage %",     "#378ADD", "Below 75% is healthy", "Above 90% is critical"),
+    (cc, "avg_latency_ms", "Average Response Time (ms)", "#888780", "Below 200ms is healthy","Above 400ms is critical"),
 ]:
-    fig_s = px.line(log_daily, x="date", y=metric, height=200,
-                    color_discrete_sequence=[color])
-    fig_s.update_layout(
-        title_text=label, title_font_size=13,
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=30,b=0,l=0,r=0), showlegend=False,
-        yaxis_title="", xaxis_title="",
+    latest = ld[metric].iloc[-1]
+    fs = px.line(ld, x="date", y=metric, height=200,
+                 color_discrete_sequence=[color])
+    fs.update_layout(
+        title_text=f"{label}: {latest:.1f}",
+        title_font_size=13,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(t=30,b=0,l=0,r=0),
+        showlegend=False,
+        yaxis_title="", xaxis_title=""
     )
-    col.plotly_chart(fig_s, use_container_width=True)
+    col.plotly_chart(fs, use_container_width=True)
+    col.caption(f"✅ {good} | ⚠️ {bad}")
 
-# ── Top noisy assets ─────────────────────────────────────────
-st.subheader("Top 15 Noisiest Assets")
-top_noisy = (
-    filtered.groupby("asset_id").size()
-    .reset_index(name="alarm_count")
-    .sort_values("alarm_count", ascending=False)
-    .head(15)
-)
-fig_bar = px.bar(
-    top_noisy, x="asset_id", y="alarm_count",
-    color_discrete_sequence=["#E24B4A"], height=280,
-    labels={"asset_id":"Asset","alarm_count":"Alarms"},
-)
-fig_bar.update_layout(
-    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    margin=dict(t=10,b=10,l=0,r=0),
-)
-st.plotly_chart(fig_bar, use_container_width=True)
+st.divider()
+
+# ── Top problem devices ────────────────────────────────────────
+st.subheader("🔥 Top 10 Most Problematic Devices")
+st.caption("These devices are generating the most alerts — investigate first")
+top = (filtered.groupby("asset_id").size()
+       .reset_index(name="Alert Count")
+       .sort_values("Alert Count", ascending=False)
+       .head(10))
+top = top.merge(preds[["asset_id","risk_level"]], on="asset_id", how="left")
+top["Risk"] = top["risk_level"].map({
+    "CRITICAL": "🟣 Emergency",
+    "HIGH":     "🔴 Urgent",
+    "MEDIUM":   "🟡 Monitor",
+    "LOW":      "🟢 Healthy"
+})
+top = top[["asset_id","Alert Count","Risk"]]
+top.columns = ["Device ID","Number of Alerts","Current Risk Status"]
+st.dataframe(top, use_container_width=True, hide_index=True)
