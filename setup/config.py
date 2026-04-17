@@ -15,8 +15,33 @@ S3 = {
     "live_logs":       f"s3://{BUCKET_NAME}/live/logs.parquet",
 }
 
+DIVISIONS = {
+    "Abqaiq":    {"routers": 45, "switches": 80, "ups": 50},
+    "Dhahran":   {"routers": 40, "switches": 70, "ups": 45},
+    "RasTanura": {"routers": 35, "switches": 60, "ups": 40},
+    "Riyadh":    {"routers": 35, "switches": 55, "ups": 35},
+    "Yanbu":     {"routers": 30, "switches": 50, "ups": 30},
+    "Jizan":     {"routers": 25, "switches": 40, "ups": 25},
+    "Tanajib":   {"routers": 25, "switches": 40, "ups": 25},
+    "Adhailiya": {"routers": 40, "switches": 65, "ups": 40},
+}
+
+DEVICE_TYPES = ["Router", "Switch", "UPS"]
+
+NETWORK_ALARMS = [
+    "LinkDown", "HighCPU", "HighMemory", "PacketLoss",
+    "InterfaceError", "BandwidthThreshold", "TemperatureHigh",
+    "FirmwareVulnerability", "SpanningTreeChange"
+]
+
+UPS_ALARMS = [
+    "BatteryLow", "BatteryReplace", "UPSOverload",
+    "UPSOnBattery", "UPSBypass", "TemperatureHigh",
+    "InputPowerFail", "SelfTestFail", "CommunicationLost"
+]
+
 SIM = {
-    "n_assets":           2000,
+    "n_assets":           1025,
     "days":               730,
     "alarm_rate_normal":  0.05,
     "alarm_rate_failing": 0.40,
@@ -26,9 +51,9 @@ SIM = {
 
 ML = {
     "anomaly_contamination": 0.10,
-    "risk_critical": 0.90,
-    "risk_high":     0.70,
-    "risk_medium":   0.40,
+    "risk_critical": 0.85,
+    "risk_high":     0.60,
+    "risk_medium":   0.35,
     "test_size":     0.25,
 }
 
@@ -38,7 +63,3 @@ RISK_LABELS = {
     "MEDIUM":   {"color": "#EF9F27", "action": "Schedule maintenance within 48 hours"},
     "LOW":      {"color": "#639922", "action": "Monitor — standard patrol cycle"},
 }
-# Override risk thresholds for better distribution
-ML["risk_critical"] = 0.85
-ML["risk_high"]     = 0.60
-ML["risk_medium"]   = 0.35
