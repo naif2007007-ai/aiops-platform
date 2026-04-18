@@ -164,8 +164,7 @@ try:
     for i, (_, row) in enumerate(top3.iterrows()):
         bg,tc,bc,icon,priority = priority_colors[i]
         info = get_division_insight(row["division"])
-
-        st.markdown(f"""
+        card_html = f"""
         <div style="background:{bg};border:1px solid {bc};border-left:5px solid {tc};
                     border-radius:8px;padding:18px 20px;margin-bottom:14px;">
 
@@ -222,7 +221,8 @@ try:
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        st.markdown(card_html, unsafe_allow_html=True)
 
     st.divider()
 
