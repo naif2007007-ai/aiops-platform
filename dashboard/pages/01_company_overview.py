@@ -14,7 +14,7 @@ try:
 
     asset_cols = [c for c in ["asset_id","division","device_type","criticality",
                   "battery_age_yrs","ups_load_pct","lifecycle_age_yrs",
-                  "days_since_maintenance"] if c in assets.columns]
+                  "days_since_maintenance","building"] if c in assets.columns]
     df = preds.merge(assets[asset_cols], on="asset_id", how="left")
 
     # ── Core numbers ──────────────────────────────────────────
@@ -138,13 +138,12 @@ try:
         else:
             ai_insight = "No critical issues detected in this division."
 
-        # Building assignment
-        buildings = ["Building-A","Building-B","Building-C",
-                     "IT-01","IT-02","Comm-01","Comm-02","Server-Room-1"]
-        rng = np.random.default_rng(42)
-        div_df["building"] = div_df["asset_id"].apply(
-            lambda x: buildings[int(x.split("-")[1]) % len(buildings)]
-        )
+        # Building from real data
+        if "building" not in div_df.columns:
+            buildings = ["Building-A","Building-B","IT-01","Comm-01","Server-01"]
+            div_df["building"] = div_df["asset_id"].apply(
+                lambda x: buildings[int(x.split("-")[1]) % len(buildings)]
+            )
 
         # Issue summary per device
         def get_issue(row):

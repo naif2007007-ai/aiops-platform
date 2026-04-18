@@ -15,6 +15,17 @@ MODELS = {
 CRITICALITY = ["Critical","High","Medium","Low"]
 CRIT_W      = [0.15,0.25,0.40,0.20]
 
+BUILDINGS = {
+    "Abqaiq":    ["Admin-01","IT-Hub","Comm-Center","Server-A","Server-B"],
+    "Dhahran":   ["HQ-Tower","IT-Block","NOC-Center","Data-01","Data-02"],
+    "Riyadh":    ["Main-DC","Backup-DC","IT-01","Comm-01","Admin-Block"],
+    "RasTanura": ["Operations-01","IT-Center","Comm-Hub","Server-01","NOC-01"],
+    "Jizan":     ["IT-Building","Admin-Block","Operations-01","Server-01","Comm-01"],
+    "Yanbu":     ["Data-Center","IT-Hub","Admin-01","NOC-01","Server-01"],
+    "Tanajib":   ["Operations-IT","Comm-Center","Server-01","IT-Block","Admin-01"],
+    "Adhailiya": ["Main-IT","NOC-01","Admin-Hub","Data-01","Comm-01"],
+}
+
 def generate_assets():
     rows = []
     asset_num = 1
@@ -73,6 +84,7 @@ def generate_assets():
                     "battery_age_yrs":        battery_age_yrs,
                     "ups_load_pct":           load_pct,
                     "ups_runtime_min":        runtime_min,
+                    "building":               rng.choice(BUILDINGS.get(division, ["IT-Block"])),
                     "fail_score":             round(fail_score,4),
                     "will_fail":              0,
                 })
