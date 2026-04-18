@@ -149,80 +149,32 @@ try:
     st.divider()
 
     # ── 4. PRIORITY DIVISIONS ─────────────────────────────────
-    st.markdown("""
-    <div style="font-size:16px;font-weight:700;color:#0A2540;margin-bottom:16px;">
-        🚨 Priority Divisions Requiring Immediate Action
-    </div>
-    """, unsafe_allow_html=True)
+    st.subheader("🚨 Priority Divisions Requiring Immediate Action")
 
-    priority_colors = [
-        ("#FFF5F5","#D32F2F","#FFCDD2","🔴","Highest Priority"),
-        ("#FFF8E1","#E65100","#FFE082","🟠","High Priority"),
-        ("#FFFDE7","#F57F17","#FFF176","🟡","Elevated Priority"),
-    ]
+    icons    = ["🔴","🟠","🟡"]
+    priority = ["Highest Priority","High Priority","Elevated Priority"]
+    borders  = ["red","orange","#F57F17"]
 
     for i, (_, row) in enumerate(top3.iterrows()):
-        bg,tc,bc,icon,priority = priority_colors[i]
         info = get_division_insight(row["division"])
-        card_html = f"""
-        <div style="background:{bg};border:1px solid {bc};border-left:5px solid {tc};
-                    border-radius:8px;padding:18px 20px;margin-bottom:14px;">
 
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        margin-bottom:12px;">
-                <div style="font-size:15px;font-weight:700;color:#0A2540;">
-                    {icon} {i+1}. {row['division']} Division
-                </div>
-                <div style="background:{tc};color:white;font-size:11px;font-weight:600;
-                            padding:4px 12px;border-radius:12px;">
-                    {priority}
-                </div>
-            </div>
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([2,1,1,1])
+            with c1:
+                st.markdown(f"**{icons[i]} {i+1}. {row['division']} Division**")
+                st.caption(f"🏷️ {priority[i]}")
+            with c2:
+                st.metric("Risk Score", f"{row['risk_score']:.0f}%")
+                st.caption(f"{int(info['critical'])} critical | {int(info['high'])} urgent")
+            with c3:
+                st.markdown("**Primary Issue**")
+                st.markdown(f"_{info['issue']}_")
+                st.caption("Prediction: 24–48 hours")
+            with c4:
+                st.markdown("**Required Action**")
+                st.caption(info['action'])
 
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-                <div>
-                    <div style="font-size:11px;color:#6B8299;font-weight:600;margin-bottom:2px;">
-                        RISK SCORE
-                    </div>
-                    <div style="font-size:20px;font-weight:700;color:{tc};">
-                        {row['risk_score']:.0f}%
-                    </div>
-                    <div style="font-size:11px;color:#4A6580;">
-                        {int(info['critical'])} critical | {int(info['high'])} urgent
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size:11px;color:#6B8299;font-weight:600;margin-bottom:2px;">
-                        PRIMARY ISSUE
-                    </div>
-                    <div style="font-size:13px;font-weight:600;color:#0A2540;">
-                        {info['issue']}
-                    </div>
-                    <div style="font-size:11px;color:#4A6580;margin-top:2px;">
-                        Prediction window: 24–48 hours
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size:11px;color:#6B8299;font-weight:600;margin-bottom:2px;">
-                        REQUIRED ACTION
-                    </div>
-                    <div style="font-size:12px;color:#0A2540;line-height:1.5;">
-                        {info['action']}
-                    </div>
-                </div>
-            </div>
-
-            <div style="margin-top:12px;padding-top:10px;border-top:1px solid {bc};">
-                <div style="font-size:11px;color:#6B8299;font-weight:600;margin-bottom:2px;">
-                    🤖 AI INSIGHT
-                </div>
-                <div style="font-size:12px;color:#1565C0;line-height:1.6;">
-                    {info['insight']}
-                </div>
-            </div>
-        </div>
-        """
-        st.markdown(card_html, unsafe_allow_html=True)
+            st.markdown(f"🤖 **AI Insight:** {info['insight']}")
 
     st.divider()
 
